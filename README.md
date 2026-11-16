@@ -7,6 +7,19 @@ a set calendar, and a portfolio with hold/sell signals.
 
 It is a research tool. It does not place trades, connect to a marketplace account, or buy or sell anything.
 
+## Quick start
+
+```
+# Windows
+py "Card Market Terminal.py"
+
+# macOS / Linux
+python3 "Card Market Terminal.py"
+```
+
+Then click **1. Download today's prices** on the Today tab (or type `SYNC` in the command box). Prices, rankings and
+the daily brief are stored in `~/CardMarketTerminalData` by default (see [Data and files](#data-and-files)).
+
 ## Features
 
 - **Command line** (top of the window, `Ctrl+K` to focus). Type a card name to open its chart, or a command:
@@ -32,53 +45,63 @@ It is a research tool. It does not place trades, connect to a marketplace accoun
 
 - **Tabs:** Today, Overview, Cards to Look For, Sharpe & Opportunities, Market History, Sets & Catalysts,
   Portfolio, Backtest & Trades, Collectors, Settings. Overview, Sharpe & Opportunities and Collectors are hidden
-  unless **Settings > Show advanced tabs** is ticked. Clicking a column heading explains it.
+  unless **Settings > Show advanced tabs** is ticked; typing their command (`MON`, `RANK`, `COL`) also opens them.
+  Clicking a column heading explains it.
 - **Analytics:** per-printing returns and Sharpe ratio (Newey-West adjusted, Benjamini-Hochberg significance),
   liquidity labels, spike/listing-artifact filtering, market indices and breadth, calibrated 7/14/30-day
   forecasts, release-phase and long-run set curves, and a strategy backtest.
 - **Pricing:** buy limits and suggested list prices after TCGplayer-style fees, shipping, card condition and
   position-size limits (Kelly fraction, per-card and per-set caps).
-- **Portfolio:** holdings and watch-only entries with price alerts, a buy/sell trade log, and "learn from my
-  trades" adjustments to the pricing settings.
-- **Exports:** CSV exports (rankings, buy list, sets, trades, card history, all cards) and a TCGplayer Mass Entry
-  text copy.
+- **Portfolio:** holdings and watch-only entries with price alerts, a buy/sell trade log, and suggested pricing
+  settings learned from your trades (applied only when you click Apply).
+- **Exports:** CSV exports (rankings, buy list, sets, portfolio, trades, card history, all cards) and a TCGplayer
+  Mass Entry text copy.
 - **Background sync:** optional daily sync while the app is closed (Windows Task Scheduler or macOS LaunchAgent).
 - **Portable copy:** copy the script and its data to a USB drive to use on another computer.
 
 ## Requirements
 
-- Python 3 with Tkinter. The script uses only the standard library; there is nothing to `pip install`.
+- Python 3.8 or newer with Tkinter (a current 3.x release is recommended). The script uses only the standard
+  library; there is nothing to `pip install`.
   - Windows: the python.org installer includes Tkinter.
-  - macOS: use Python from python.org (the app says so if Tk fails to start).
+  - macOS: use Python from python.org (the app says so if Tk fails to start). Homebrew Python needs
+    `brew install python-tk`.
+  - Linux: install your distribution's Tk package (for example `python3-tk`).
 - Internet access for data downloads.
 - Optional: **7-Zip** command line (`7zz`, `7z` or `7za` on PATH, or `7-Zip\7z.exe` under Program Files on
   Windows). Needed only for the TCGCSV historical archive backfill.
-- Background sync and desktop notifications are implemented for Windows and macOS only (notifications are
-  Windows-only).
+- Background sync is built in for Windows and macOS only, and desktop notifications for Windows only. On Linux
+  the GUI and `--sync` work; schedule `--sync` yourself (for example with cron) if you want daily updates.
 
 ## Running
 
 The script file name contains spaces, so quote it.
 
-| Task | Windows | macOS |
+| Task | Windows | macOS / Linux |
 |---|---|---|
 | Open the GUI | `py "Card Market Terminal.py"` | `python3 "Card Market Terminal.py"` |
 | One headless sync (no window) | `py "Card Market Terminal.py" --sync` | `python3 "Card Market Terminal.py" --sync` |
 | Offline self-tests | `py "Card Market Terminal.py" --self-test` | `python3 "Card Market Terminal.py" --self-test` |
 
 `--self-test` runs the built-in unittest suite (no GUI, no network). `--sync` downloads the day's TCGCSV data,
-runs the side feeds, precomputes rankings, logs triggered portfolio alerts and writes the daily brief; it exits
-with code 0 on success and 1 on failure.
+runs the side feeds, precomputes rankings, logs triggered portfolio alerts and writes the daily brief. It exits
+with code 1 only if the TCGCSV sync itself fails; errors in the later steps are printed but still exit 0. Run from a
+terminal, it prints to the console; the log files below are written only by scheduled runs.
 
 ### First run
 
-1. Collectors / Today: **Download today's prices** (or type `SYNC`). The first sync downloads the full catalog
-   for all four games and takes a while.
-2. Optional: **Turn on daily updates**, either in-app ("Enable daily automatic sync while this app is open",
-   Collectors tab) or in the background (Settings > Enable daily background sync).
-3. Settings: set your selling fees, shipping and capital.
+The Today tab shows a **Getting started** panel until prices are stored.
+
+1. **1. Download today's prices** (or type `SYNC`). The first sync downloads the full catalog for all four games
+   and takes about 10-20 minutes; later syncs take a minute or two.
+2. Optional: **2. Turn on daily updates** installs background sync (same as Settings > **Enable daily background
+   sync**; Windows and macOS). Alternatively tick "Enable daily automatic sync while this app is open" on the
+   Collectors tab.
+3. **3. Set my selling fees and shipping** opens Settings: set your fees, shipping and capital.
 4. Optional, for MTG history right away: Collectors > **Import last 90 days of MTG prices** (MTGJSON, about
    60 MB download). Requires a completed sync first.
+
+The Collectors tab is hidden by default: type `COL` or tick **Settings > Show advanced tabs**.
 
 ### Background sync
 
@@ -86,6 +109,7 @@ with code 0 on success and 1 on failure.
 |---|---|---|---|
 | Windows | Scheduled task `CardMarketTerminal Daily Sync` (runs `pythonw.exe <script> --sync`, signed-in user, no stored password, catches up after sleep) | 14:30 and 22:00 local | `daily-sync.log`, `daily-sync-error.log` in the data folder |
 | macOS | LaunchAgent `~/Library/LaunchAgents/com.cardmarketterminal.daily-sync.plist` | 14:30 local | same files |
+| Linux | None built in | - | - |
 
 Both point at the script's current path and the current Python interpreter. If you move the script or change
 Python, disable and re-enable background sync.
@@ -97,6 +121,10 @@ Python, disable and re-enable background sync.
 | Variable | Effect |
 |---|---|
 | `CMT_DATA` | Path of the data folder. Overrides the default location (see below). |
+
+Background sync does not pass `CMT_DATA` on: the macOS LaunchAgent never sees a variable set in your shell, and the
+Windows task sees it only if it is set as a user or system environment variable. Otherwise the scheduled sync
+writes to the default folder.
 
 No other environment variables, API keys or config files are read. (On Windows, `ProgramFiles`,
 `ProgramFiles(x86)` and `ProgramW6432` are read only to locate 7-Zip.)
@@ -119,7 +147,8 @@ Settings are stored in the `settings` table of the database and edited in the GU
     plus the FRED EUR/USD rate.
   - **Keep detailed daily price rows for N days** (default 120, minimum 60, 0 = forever).
   - **Back up & tidy now.**
-  - **Show a Windows notification after each background sync** (default on).
+  - **After each background sync, write the daily brief and show a Windows notification** (default on; the
+    brief is written either way, this switch controls the notification).
 
 ## Data sources
 
@@ -128,7 +157,7 @@ All sources are free and need no account or key. Requests send the User-Agent
 
 | Source | Used for | Frequency |
 |---|---|---|
-| TCGCSV (`tcgcsv.com/tcgplayer`) | Daily TCGplayer catalog and prices (market, low, mid, high, direct low) for categories 1 MTG, 3 Pokémon, 68 One Piece, 89 Riftbound; set lists | Daily. Checks `last-updated.txt` first and skips unchanged builds. Paced at 0.11 s between requests, capped at 8,000 requests/day, backs off on HTTP 429. |
+| TCGCSV (`tcgcsv.com/tcgplayer`) | Daily TCGplayer catalog and prices (market, low, mid, high, direct low) for categories 1 MTG, 3 Pokémon, 68 One Piece, 89 Riftbound; set lists | Daily. Checks `last-updated.txt` first and skips unchanged builds. Paced at 0.11 s between requests, capped at 8,000 requests/day. HTTP 429 stops the sync and blocks requests for 10 minutes. |
 | TCGCSV archive (`tcgcsv.com/archive/tcgplayer`) | Historical daily prices from 2024-02-08 (`.ppmd.7z`, needs 7-Zip) | On request; availability checked weekly (the archive was offline at time of writing) |
 | MTGJSON (`mtgjson.com/api/v5`) | MTG card identifiers; 90-day TCGplayer history; Card Kingdom buylist and Cardmarket (EUR) prices | Identifiers weekly; today's prices daily; 90-day import on request |
 | Scryfall (`api.scryfall.com`) | MTG set list and release dates; oracle bulk file for format legality, bans and EDHREC rank | Set list daily; oracle bulk weekly |
@@ -202,7 +231,8 @@ cannot hold files over 4 GB; use exFAT or NTFS for a large database.
 
 | Symptom | Cause / fix |
 |---|---|
-| "Tkinter GUI could not start" | Python lacks Tk. On macOS install Python from python.org. |
+| "Tkinter GUI could not start" or `No module named 'tkinter'` | Python lacks Tk. On macOS install Python from python.org; on Linux install `python3-tk`. |
+| Collectors tab is missing | It is an advanced tab. Type `COL` or tick Settings > Show advanced tabs. |
 | App says prices are being saved and will not open | A background sync holds the database. Wait a few minutes and reopen. |
 | "A TCGCSV sync already appears to be running" | Another sync (GUI or background) is active. If none is, the lock file `tcgcsv_sync.lock` in the data folder clears itself after 6 hours. |
 | "No successful TCGCSV sync for N hours" / "Partial sync?" | Type `SYNC`. A partial warning means far fewer prices than the previous sync (incomplete source build); the next full sync clears it. |
