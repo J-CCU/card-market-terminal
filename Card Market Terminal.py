@@ -3926,7 +3926,11 @@ def remove_windows_sync_task(task_name=WINDOWS_TASK_NAME):
 def friendly_error(text):
     """A plain explanation for a failed download or job, followed by the technical detail."""
     t=str(text or ''); low=t.lower()
-    if any(x in low for x in ('getaddrinfo','urlopen error','timed out','timeout','connection reset','connection refused',
+    if 'certificate_verify_failed' in low or 'certificate verify failed' in low or 'sslcertverificationerror' in low:
+        head=("Python couldn't verify the price site's security certificate, so the download was stopped. "
+              "If you use Python from python.org on a Mac, open Applications > Python 3.x and run \"Install Certificates.command\", then try again. "
+              "Otherwise check that your computer's date and time are right and that no proxy or antivirus is intercepting secure connections.")
+    elif any(x in low for x in ('getaddrinfo','urlopen error','timed out','timeout','connection reset','connection refused',
                               'no route','network is unreachable','temporary failure in name resolution','remote end closed')):
         head="Couldn't reach the price source. Check your internet connection and try again later — your saved data is safe."
     elif 'http error 429' in low or 'too many requests' in low:
@@ -7868,6 +7872,8 @@ class OfflineSelfTests(unittest.TestCase):
         self.assertIn('slow down',friendly_error('HTTP Error 429: Too Many Requests'))
         self.assertIn('Details: HTTP Error 503',friendly_error('HTTP Error 503: Service Unavailable'))
         self.assertEqual(friendly_error('something odd'),'something odd')
+        cert=friendly_error('<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>')
+        self.assertIn('Install Certificates.command',cert); self.assertNotIn('internet connection',cert)
     def test_csv_headings_are_readable(self):
         self.assertEqual(csv_heading('return_7d_pct'),'Return 7d %')
         self.assertEqual(csv_heading('latest_price_usd'),'Latest price $')

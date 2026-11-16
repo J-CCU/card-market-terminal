@@ -242,6 +242,7 @@ cannot hold files over 4 GB; use exFAT or NTFS for a large database.
 | Background sync stopped after moving the script | The scheduled task / LaunchAgent stores the old path. Disable and re-enable it in Settings. |
 | Empty rankings or forecasts | Not enough history yet. Rankings need about 30 days of daily prices per printing; the MTGJSON import fills MTG history faster. |
 | Background run failed | Check `daily-sync-error.log` in the data folder. |
+| "Python couldn't verify the price site's security certificate" (`CERTIFICATE_VERIFY_FAILED`) | Python has no trusted certificate list. With python.org Python on macOS, run `Install Certificates.command` from the Applications > Python 3.x folder. Otherwise check the computer's date and time and any proxy or antivirus that inspects HTTPS. |
 
 ## Code layout
 
