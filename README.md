@@ -234,5 +234,3 @@ Everything is in `Card Market Terminal.py`, in roughly this order:
 | Upkeep and portability | `run_side_feeds`, `run_maintenance`, `backup_essentials`, `make_portable_copy` |
 | Entry points | `run_headless_sync`, `OfflineSelfTests` / `run_self_tests`, `if __name__ == '__main__'` |
 
-`card_market_terminal.zip` is an older, separate build (a FastAPI web app with its own `requirements.txt`). It is
-not used by the current script.
