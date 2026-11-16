@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Card Market Terminal v2.0 — single-file, stdlib-only market terminal for MTG and Pokémon singles.
+"""Card Market Terminal v3.22 — single-file, stdlib-only market terminal for MTG, Pokémon, One Piece and Riftbound singles.
 
 Market monitor (indices, breadth, movers, alerts), command line (type a card name or HELP), rankings with
 autocorrelation-adjusted Sharpe and false-discovery-rate significance, calibrated forecasts, buy/sell
 prices after fees and liquidity, set heatmap and release calendar, and a portfolio with hold/sell signals.
 Free data only: TCGCSV (TCGplayer prices), MTGJSON (MTG history), Scryfall (set calendar), FRED (T-bill rate).
 
-Run the GUI:       python3 card_market_terminal_single.py
-Run a headless sync: python3 card_market_terminal_single.py --sync
-Run offline tests: python3 card_market_terminal_single.py --self-test
+Run the GUI:       python3 "Card Market Terminal.py"
+Run a headless sync: python3 "Card Market Terminal.py" --sync
+Run offline tests: python3 "Card Market Terminal.py" --self-test
 
 The TCGCSV collector checks its daily build marker and uses a custom User-Agent and
 request pacing. It does not place trades or perform per-card rapid polling.
@@ -45,8 +45,11 @@ import shutil
 from contextlib import contextmanager
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+try:
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox
+except ImportError:  # Python without Tk: --sync and --self-test still work; only the GUI needs it
+    tk=ttk=filedialog=messagebox=None
 
 APP = 'Card Market Terminal'
 SUPPORTED_GAMES = ('MTG', 'Pokémon', 'One Piece', 'Riftbound')
@@ -55,8 +58,9 @@ REGULAR_RARITIES = ('Common','Uncommon','Rare','C','UC','R')
 HISTORY_ARCHIVE_BASE = 'https://tcgcsv.com/archive/tcgplayer'
 HISTORY_ARCHIVE_FIRST_DATE = datetime(2024, 2, 8).date()
 def _data_root():
-    """Where the data lives: CMT_DATA if set; a 'CardMarketTerminalData' folder beside this script (a portable copy you
-    can carry between computers); otherwise the one in your user profile."""
+    """Where the data lives: --data FOLDER (passed by the Windows scheduled task) or CMT_DATA if set; a 'CardMarketTerminalData'
+    folder beside this script (a portable copy you can carry between computers); otherwise the one in your user profile."""
+    if '--data' in sys.argv[1:-1]: return Path(sys.argv[sys.argv.index('--data',1)+1])
     if os.environ.get('CMT_DATA'): return Path(os.environ['CMT_DATA'])
     beside=Path(__file__).resolve().parent/'CardMarketTerminalData'
     return beside if beside.is_dir() else Path.home()/'CardMarketTerminalData'
@@ -3871,13 +3875,14 @@ def windowless_python():
     candidate=exe.with_name('pythonw.exe')
     return candidate if candidate.is_file() else exe
 
-def windows_task_xml(python, script, today=None):
-    """Task Scheduler definition: daily runs, catch up after sleep/shutdown, no stored password."""
+def windows_task_xml(python, script, today=None, data=None):
+    """Task Scheduler definition: daily runs, catch up after sleep/shutdown, no stored password.
+    data: the data folder to sync into, passed as --data so the task does not depend on CMT_DATA being set."""
     today=today or datetime.now().date()
     triggers=''.join(
         f'<CalendarTrigger><StartBoundary>{today.isoformat()}T{at}:00</StartBoundary><Enabled>true</Enabled>'
         '<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>' for at in WINDOWS_TASK_TIMES)
-    arguments=subprocess.list2cmdline([str(script),'--sync'])
+    arguments=subprocess.list2cmdline([str(script),'--sync']+(['--data',str(data)] if data else []))
     return f'''<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo><Description>{xml_escape(APP)}: daily TCGCSV price sync (all supported games). Checks the build marker first; no purchases.</Description></RegistrationInfo>
@@ -3895,10 +3900,10 @@ def windows_task_xml(python, script, today=None):
 </Task>
 '''
 
-def install_windows_sync_task(python, script, task_name=WINDOWS_TASK_NAME, today=None):
+def install_windows_sync_task(python, script, task_name=WINDOWS_TASK_NAME, today=None, data=None):
     with tempfile.TemporaryDirectory(prefix='cmt_task_') as tmp:
         definition=Path(tmp)/'task.xml'
-        definition.write_text(windows_task_xml(python,script,today),encoding='utf-16')
+        definition.write_text(windows_task_xml(python,script,today,data),encoding='utf-16')
         result=subprocess.run(['schtasks','/Create','/TN',task_name,'/XML',str(definition),'/F'],capture_output=True,text=True,check=False)
     if result.returncode!=0:
         raise RuntimeError('Task Scheduler could not create the task: '+(result.stderr.strip() or result.stdout.strip()))
@@ -3966,7 +3971,7 @@ def parse_trade_date(text):
 ASYNC_EVENTS = ('kpis','progress','rank_progress','rankings_done','rankings_error','model_ready','model_error',
                 'annotated','risk_free','risk_free_error','catalysts','set_names','backtest','facts','longterm','bg_note')
 
-class Terminal(tk.Tk):
+class Terminal(tk.Tk if tk else object):
     def __init__(self):
         super().__init__(); self.store=Store(); self.events=queue.Queue(); self.busy=False
         self.title('Card Market Terminal  |  MTG · Pokémon · One Piece · Riftbound'); self._fit_window()
@@ -6152,7 +6157,8 @@ class Terminal(tk.Tk):
             self.bg_note=tk.StringVar(value='')
             ttk.Label(row,textvariable=self.bg_note,style='Small.TLabel').pack(side='left',padx=(12,0))
             self._refresh_bg_note()
-            self._upkeep_controls(p)
+        self._upkeep_controls(p)
+        if sys.platform.startswith('win'):
             self.notify_var=tk.BooleanVar(value=self.store.get_setting('notify_after_sync','1')=='1')
             ttk.Checkbutton(p,text='After each background sync, write the daily brief and show a Windows notification',variable=self.notify_var,
                             command=lambda:self.store.setting('notify_after_sync','1' if self.notify_var.get() else '0')).pack(anchor='w',pady=(10,0))
@@ -6213,7 +6219,7 @@ class Terminal(tk.Tk):
                 'Keep this script at its current path. No purchases are made.'):
             return
         try:
-            install_windows_sync_task(windowless_python(),Path(__file__).resolve())
+            install_windows_sync_task(windowless_python(),Path(__file__).resolve(),data=ROOT.resolve())
             self.status.set('Daily background sync enabled (Windows Task Scheduler)'); self._refresh_bg_note()
             messagebox.showinfo(APP,f'Daily background sync is enabled as the scheduled task "{WINDOWS_TASK_NAME}".\nOutput log: {ROOT/"daily-sync.log"}\nError log: {ROOT/"daily-sync-error.log"}')
         except Exception as e:
@@ -6250,6 +6256,7 @@ class Terminal(tk.Tk):
             payload={
                 'Label':'com.cardmarketterminal.daily-sync',
                 'ProgramArguments':[str(python),str(script),'--sync'],
+                'EnvironmentVariables':{'CMT_DATA':str(ROOT.resolve())},  # same data folder as this session, whatever the shell had
                 'StartCalendarInterval':{'Hour':14,'Minute':30},
                 'RunAtLoad':False,
                 'StandardOutPath':str(log_path),
@@ -7415,6 +7422,9 @@ class OfflineSelfTests(unittest.TestCase):
         ns={'t':'http://schemas.microsoft.com/windows/2004/02/mit/task'}
         self.assertEqual(root.find('.//t:Command',ns).text,r'C:\Py\pythonw.exe')
         self.assertEqual(root.find('.//t:Arguments',ns).text,'"C:\\My Apps\\cmt & co\\card.py" --sync')
+        text=windows_task_xml(r'C:\Py\pythonw.exe',r'C:\cmt\card.py',datetime(2026,10,26).date(),data=r'D:\Card Data')
+        root=ET.fromstring(text.split('?>',1)[1])
+        self.assertEqual(root.find('.//t:Arguments',ns).text,'C:\\cmt\\card.py --sync --data "D:\\Card Data"')
         self.assertEqual([e.text for e in root.findall('.//t:StartBoundary',ns)],['2026-10-26T14:30:00','2026-10-26T22:00:00'])
         self.assertEqual(root.find('.//t:StartWhenAvailable',ns).text,'true')
 
@@ -7939,6 +7949,10 @@ if __name__=='__main__':
             sys.stdout=open(ROOT/'daily-sync.log','a',encoding='utf-8')
             sys.stderr=open(ROOT/'daily-sync-error.log','a',encoding='utf-8')
         sys.exit(run_headless_sync())
+    if tk is None:
+        print("Tkinter GUI could not start: No module named 'tkinter'",file=sys.stderr)
+        print('Install a Python with Tk support (python.org; Homebrew: python-tk; Linux: python3-tk).',file=sys.stderr)
+        sys.exit(1)
     try: AutomatedTerminal().mainloop()
     except sqlite3.OperationalError as e:
         if 'locked' not in str(e).lower(): raise

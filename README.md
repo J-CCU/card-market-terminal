@@ -107,7 +107,7 @@ The Collectors tab is hidden by default: type `COL` or tick **Settings > Show ad
 
 | Platform | Mechanism | Schedule | Logs |
 |---|---|---|---|
-| Windows | Scheduled task `CardMarketTerminal Daily Sync` (runs `pythonw.exe <script> --sync`, signed-in user, no stored password, catches up after sleep) | 14:30 and 22:00 local | `daily-sync.log`, `daily-sync-error.log` in the data folder |
+| Windows | Scheduled task `CardMarketTerminal Daily Sync` (runs `pythonw.exe <script> --sync --data <data folder>`, signed-in user, no stored password, catches up after sleep) | 14:30 and 22:00 local | `daily-sync.log`, `daily-sync-error.log` in the data folder |
 | macOS | LaunchAgent `~/Library/LaunchAgents/com.cardmarketterminal.daily-sync.plist` | 14:30 local | same files |
 | Linux | None built in | - | - |
 
@@ -122,9 +122,9 @@ Python, disable and re-enable background sync.
 |---|---|
 | `CMT_DATA` | Path of the data folder. Overrides the default location (see below). |
 
-Background sync does not pass `CMT_DATA` on: the macOS LaunchAgent never sees a variable set in your shell, and the
-Windows task sees it only if it is set as a user or system environment variable. Otherwise the scheduled sync
-writes to the default folder.
+Background sync uses the data folder the app was using when you enabled it: the macOS LaunchAgent sets `CMT_DATA`
+to it, and the Windows task passes it as `--data FOLDER`. If you later change `CMT_DATA` or move the data
+folder, disable and re-enable background sync.
 
 No other environment variables, API keys or config files are read. (On Windows, `ProgramFiles`,
 `ProgramFiles(x86)` and `ProgramW6432` are read only to locate 7-Zip.)
@@ -142,13 +142,13 @@ Settings are stored in the `settings` table of the database and edited in the GU
 - **Show advanced tabs.**
 - **Enable daily automatic sync while this app is open** (Collectors tab). Checks once a day; retries at most
   hourly.
-- Windows only (Settings tab):
+- Data upkeep (Settings tab):
   - **Cardmarket (EU) module:** shows EU prices in USD and flags MTG cards rising in Europe first. Uses MTGJSON
     plus the FRED EUR/USD rate.
   - **Keep detailed daily price rows for N days** (default 120, minimum 60, 0 = forever).
   - **Back up & tidy now.**
-  - **After each background sync, write the daily brief and show a Windows notification** (default on; the
-    brief is written either way, this switch controls the notification).
+  - Windows only: **After each background sync, write the daily brief and show a Windows notification** (default
+    on; the brief is written either way, this switch controls the notification).
 
 ## Data sources
 
@@ -168,7 +168,7 @@ All sources are free and need no account or key. Requests send the User-Agent
 
 Data folder (`ROOT`), chosen in this order:
 
-1. `CMT_DATA`, if set.
+1. `--data FOLDER` on the command line (used by the Windows scheduled task), then `CMT_DATA`, if set.
 2. A `CardMarketTerminalData` folder next to the script, if it exists (portable mode).
 3. `~/CardMarketTerminalData` (on Windows, `%USERPROFILE%\CardMarketTerminalData`).
 
@@ -231,7 +231,7 @@ cannot hold files over 4 GB; use exFAT or NTFS for a large database.
 
 | Symptom | Cause / fix |
 |---|---|
-| "Tkinter GUI could not start" or `No module named 'tkinter'` | Python lacks Tk. On macOS install Python from python.org; on Linux install `python3-tk`. |
+| "Tkinter GUI could not start" or `No module named 'tkinter'` | Python lacks Tk. On macOS install Python from python.org; on Linux install `python3-tk`. `--sync` and `--self-test` work without Tk. |
 | Collectors tab is missing | It is an advanced tab. Type `COL` or tick Settings > Show advanced tabs. |
 | App says prices are being saved and will not open | A background sync holds the database. Wait a few minutes and reopen. |
 | "A TCGCSV sync already appears to be running" | Another sync (GUI or background) is active. If none is, the lock file `tcgcsv_sync.lock` in the data folder clears itself after 6 hours. |
